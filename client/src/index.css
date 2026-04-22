@@ -1,0 +1,187 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+
+body {
+  background: #000000;
+  color: rgba(255, 255, 255, 0.95);
+  text-rendering: optimizeLegibility;
+}
+
+/* iOS — отключаем зум при двойном тапе */
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* Минимум 44px для тап-таргетов на телефоне */
+@media (max-width: 640px) {
+  button, a[role="button"], .tap-target {
+    min-height: 44px;
+  }
+}
+
+/* Скролл стили (только на десктопе, на телефоне нативно) */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 217, 255, 0.4);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 217, 255, 0.7);
+  }
+}
+
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Safe area для iPhone с notch и Android с навигационным баром */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom);
+}
+
+/* Анимации */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; r: 15; }
+  50% { opacity: 0.5; r: 25; }
+  100% { opacity: 0; r: 35; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(0, 217, 255, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(0, 217, 255, 1); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fadeIn { animation: fadeIn 0.25s ease-out; }
+.animate-slideUp { animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-slideDown { animation: slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-scaleIn { animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Glass-эффект */
+.glass {
+  background: rgba(15, 15, 15, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Press-эффект (для тач-устройств) */
+.press {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.press:active {
+  transform: scale(0.96);
+  opacity: 0.85;
+}
+
+/* Кнопочные стили */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 cursor-pointer;
+}
+.btn-primary {
+  @apply btn bg-accent text-black hover:shadow-lg hover:shadow-cyan-500/50 hover:scale-105;
+}
+.btn-secondary {
+  @apply btn bg-surface2 text-accent border border-accent hover:bg-accent hover:text-black;
+}
+.btn-danger {
+  @apply btn bg-danger text-white hover:opacity-80;
+}
+
+/* Input стили */
+input, textarea {
+  @apply bg-surface border border-border rounded-lg px-3 py-2 text-white placeholder-muted/50 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition-all duration-200;
+  font-size: 16px; /* предотвращает zoom на iOS при фокусе */
+}
+
+/* Карточки */
+.card {
+  @apply bg-surface2 border border-border rounded-xl p-4 backdrop-blur-sm;
+}
+.card-glow {
+  @apply card shadow-lg shadow-cyan-500/20;
+}
+
+/* Скрытие Leaflet кнопок */
+.leaflet-control-zoom,
+.leaflet-control-attribution {
+  display: none;
+}
+
+/* Тёмная карта */
+.leaflet-container {
+  background: #000;
+}
+
+/* Скрытие скроллбара утилита */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
