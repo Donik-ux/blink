@@ -1,22 +1,84 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, ArrowLeft } from 'lucide-react';
+import { MessageCircle, ArrowLeft, Search } from 'lucide-react';
 import { getConversations } from '../api/chat.js';
 import { useAuthStore } from '../store/authStore.js';
 import { Avatar } from '../components/Avatar.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
+import { useSocket } from '../hooks/useSocket.js';
+
+const getUserIdFromToken = () => {
+  try {
+    const t = useAuthStore.getState().token;
+    if (!t) return null;
+    const payload = JSON.parse(atob(t.split('.')[1]));
+    return payload.id || null;
+  } catch {
+    return null;
+  }
+};
+
+const formatPreviewTime = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) {
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+  if (isYesterday) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' });
+};
 
 export const ChatList = () => {
   const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
   const currentUser = useAuthStore((state) => state.currentUser);
+  const myId = useMemo(() => currentUser?.id || getUserIdFromToken(), [currentUser]);
+  const { socket } = useSocket();
 
   useEffect(() => {
     loadConversations();
-    const interval = setInterval(loadConversations, 5000); // Обновляем каждые 5 сек
+    const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Realtime: при получении сообщения сразу обновляем превью
+  useEffect(() => {
+    if (!socket) return;
+    const onMessage = (data) => {
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c._id === data.conversationId);
+        if (idx === -1) {
+          loadConversations();
+          return prev;
+        }
+        const updated = { ...prev[idx] };
+        updated.lastMessage = data.text || (data.sticker ? '🎨 Стикер' : '');
+        updated.lastMessageTime = data.timestamp || new Date();
+        updated.lastMessageSenderId = data.senderId;
+        const unread = updated.unreadCount?.[myId] || 0;
+        updated.unreadCount = { ...(updated.unreadCount || {}), [myId]: unread + 1 };
+        const next = [updated, ...prev.filter((_, i) => i !== idx)];
+        return next;
+      });
+    };
+    socket.on('receive-message', onMessage);
+    return () => {
+      socket.off('receive-message', onMessage);
+    };
+  }, [socket, myId]);
 
   const loadConversations = async () => {
     try {
@@ -29,83 +91,150 @@ export const ChatList = () => {
     }
   };
 
-  const getFriendFromConversation = (conversation) => {
-    return conversation.participants.find((p) => p._id !== currentUser?.id);
-  };
-
-  const getUnreadCount = (conversation) => {
-    return conversation.unreadCount?.[currentUser?.id] || 0;
-  };
+  const getFriend = (c) => c.participants.find((p) => p._id !== myId);
+  const getUnread = (c) => c.unreadCount?.[myId] || 0;
 
   const handleOpenChat = (conversationId, friend) => {
+    if (navigator.vibrate) navigator.vibrate(8);
     navigate(`/chat/${conversationId}`, { state: { friend } });
   };
 
+  const filtered = useMemo(() => {
+    const list = conversations
+      .map((c) => ({ c, friend: getFriend(c) }))
+      .filter((x) => x.friend);
+    if (!query.trim()) return list;
+    const q = query.toLowerCase();
+    return list.filter(
+      (x) =>
+        x.friend.name?.toLowerCase().includes(q) ||
+        (x.c.lastMessage || '').toLowerCase().includes(q)
+    );
+  }, [conversations, query, myId]);
+
+  const totalUnread = conversations.reduce((sum, c) => sum + getUnread(c), 0);
+
   return (
-    <div className="min-h-screen bg-bg pb-20">
-      {/* Header */}
-      <div className="sticky top-0 bg-bg z-40 border-b border-border p-4">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-surface rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} className="text-accent" />
-          </button>
-          <h1 className="text-2xl font-bold text-white">Сообщения</h1>
+    <div className="min-h-screen bg-bg pb-32">
+      {/* Glass sticky header */}
+      <div className="sticky top-0 z-40 glass safe-top border-b border-border">
+        <div className="px-4 pt-3 pb-3">
+          <div className="flex items-center gap-3 mb-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="press p-2 -ml-2 rounded-xl hover:bg-surface transition-colors"
+              aria-label="Назад"
+            >
+              <ArrowLeft size={22} className="text-accent" />
+            </button>
+            <h1 className="text-xl font-bold text-white flex-1">Сообщения</h1>
+            {totalUnread > 0 && (
+              <span className="bg-accent text-black text-xs font-bold rounded-full px-2.5 py-1">
+                {totalUnread > 99 ? '99+' : totalUnread}
+              </span>
+            )}
+          </div>
+          {/* Search */}
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+            />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск по чатам"
+              className="w-full bg-surface border border-border rounded-xl pl-9 pr-3 py-2 text-white placeholder:text-muted text-base focus:outline-none focus:border-accent transition-colors"
+            />
+          </div>
         </div>
       </div>
 
       {/* Список чатов */}
       <div className="p-4">
         {loading ? (
-          <p className="text-muted text-center py-8">Загрузка чатов...</p>
-        ) : conversations.length === 0 ? (
-          <div className="text-center py-12">
-            <MessageCircle size={48} className="text-muted mx-auto mb-2 opacity-50" />
-            <p className="text-muted">Нет сообщений</p>
-            <p className="text-muted text-sm">Напиши первое сообщение другу</p>
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="card animate-pulse flex items-center gap-3"
+              >
+                <div className="w-12 h-12 rounded-full bg-surface" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-1/3 bg-surface rounded" />
+                  <div className="h-3 w-2/3 bg-surface rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 px-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-surface mb-4">
+              <MessageCircle size={32} className="text-muted opacity-60" />
+            </div>
+            <p className="text-white font-medium mb-1">
+              {query ? 'Ничего не найдено' : 'Нет сообщений'}
+            </p>
+            <p className="text-muted text-sm">
+              {query
+                ? 'Попробуй другое имя или текст'
+                : 'Открой друга и напиши первое сообщение'}
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
-            {conversations.map((conversation) => {
-              const friend = getFriendFromConversation(conversation);
-              const unreadCount = getUnreadCount(conversation);
-
-              if (!friend) return null;
-
+            {filtered.map(({ c, friend }) => {
+              const unread = getUnread(c);
+              const isUnread = unread > 0;
               return (
                 <button
-                  key={conversation._id}
-                  onClick={() => handleOpenChat(conversation._id, friend)}
-                  className="w-full text-left card hover:bg-surface hover:border-accent transition-all group"
+                  key={c._id}
+                  onClick={() => handleOpenChat(c._id, friend)}
+                  className={`press w-full text-left card transition-all active:scale-[0.99] ${
+                    isUnread
+                      ? 'border-accent/40 bg-surface/60'
+                      : 'hover:border-accent/30'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="relative">
+                    <div className="relative flex-shrink-0">
                       <Avatar name={friend.name} color={friend.color} size="md" />
-                      {unreadCount > 0 && (
-                        <div className="absolute -top-1 -right-1 bg-accent text-black text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {unreadCount > 9 ? '9+' : unreadCount}
+                      {isUnread && (
+                        <div className="absolute -top-1 -right-1 bg-accent text-black text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow-lg shadow-accent/30">
+                          {unread > 9 ? '9+' : unread}
                         </div>
                       )}
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium">{friend.name}</p>
-                      <p className="text-muted text-sm truncate">
-                        {conversation.lastMessage || 'Нет сообщений'}
-                      </p>
-                    </div>
-
-                    <div className="text-right flex-shrink-0">
-                      {conversation.lastMessageTime && (
-                        <p className="text-muted text-xs">
-                          {new Date(conversation.lastMessageTime).toLocaleDateString('ru-RU', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <p
+                          className={`truncate ${
+                            isUnread
+                              ? 'text-white font-semibold'
+                              : 'text-white font-medium'
+                          }`}
+                        >
+                          {friend.name}
                         </p>
-                      )}
+                        {c.lastMessageTime && (
+                          <span
+                            className={`text-xs flex-shrink-0 ${
+                              isUnread ? 'text-accent font-medium' : 'text-muted'
+                            }`}
+                          >
+                            {formatPreviewTime(c.lastMessageTime)}
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-sm truncate ${
+                          isUnread ? 'text-white/80' : 'text-muted'
+                        }`}
+                      >
+                        {c.lastMessage || 'Нет сообщений'}
+                      </p>
                     </div>
                   </div>
                 </button>
