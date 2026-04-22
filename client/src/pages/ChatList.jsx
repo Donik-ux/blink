@@ -199,7 +199,7 @@ export const ChatList = () => {
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative flex-shrink-0">
-                      <Avatar name={friend.name} color={friend.color} size="md" />
+                      <Avatar name={friend.name} color={friend.color} avatar={friend.avatar} size="md" />
                       {isUnread && (
                         <div className="absolute -top-1 -right-1 bg-accent text-black text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center shadow-lg shadow-accent/30">
                           {unread > 9 ? '9+' : unread}

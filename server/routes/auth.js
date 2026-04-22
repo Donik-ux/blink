@@ -26,6 +26,7 @@ const publicUser = (user) => ({
   name: user.name,
   email: user.email,
   color: user.color,
+  avatar: user.avatar,
   inviteCode: user.inviteCode,
   ghostMode: user.ghostMode,
   privacyMode: user.privacyMode,

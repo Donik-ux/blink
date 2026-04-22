@@ -14,13 +14,27 @@ const safeStorage = {
   },
 };
 
+const loadCachedUser = () => {
+  try {
+    const raw = safeStorage.get('currentUser');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const useAuthStore = create((set) => ({
-  currentUser: null,
+  // Восстанавливаем юзера из кэша — чтобы после refresh аватарка/имя не моргали и сокет сразу поднимался
+  currentUser: loadCachedUser(),
   token: safeStorage.get('token') || null,
   refreshToken: safeStorage.get('refreshToken') || null,
   isAuthenticated: !!safeStorage.get('token'),
 
-  setUser: (user) => set({ currentUser: user }),
+  setUser: (user) => {
+    if (user) safeStorage.set('currentUser', JSON.stringify(user));
+    else safeStorage.del('currentUser');
+    set({ currentUser: user });
+  },
 
   setTokens: ({ token, refreshToken }) => {
     if (token) safeStorage.set('token', token);
@@ -41,6 +55,7 @@ export const useAuthStore = create((set) => ({
   logout: () => {
     safeStorage.del('token');
     safeStorage.del('refreshToken');
+    safeStorage.del('currentUser');
     set({ currentUser: null, token: null, refreshToken: null, isAuthenticated: false });
   },
 }));

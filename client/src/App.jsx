@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore.js';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
+import { getProfile } from './api/profile.js';
 
 // Lazy-load страниц — каждый маршрут грузится отдельным чанком
 const Onboarding = lazy(() => import('./pages/Onboarding.jsx').then((m) => ({ default: m.Onboarding })));
@@ -27,7 +28,49 @@ const PageFallback = () => (
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const setUser = useAuthStore((state) => state.setUser);
+  const logout = useAuthStore((state) => state.logout);
   const onboardingDone = localStorage.getItem('onboarding_done');
+
+  // Запрашиваем разрешение на системные нотификации (для "друг рядом")
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      // Не спрашиваем сразу — даём 3 секунды на адаптацию интерфейса
+      const t = setTimeout(() => {
+        Notification.requestPermission().catch(() => {});
+      }, 3000);
+      return () => clearTimeout(t);
+    }
+  }, [isAuthenticated]);
+
+  // После refresh: если есть токен но нет/устарел юзер — подтягиваем свежий профиль
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getProfile();
+        if (cancelled) return;
+        setUser({
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          color: data.color,
+          avatar: data.avatar,
+          inviteCode: data.inviteCode,
+          ghostMode: data.ghostMode,
+          privacyMode: data.privacyMode,
+        });
+      } catch (e) {
+        // 401 → токен протух, выкидываем
+        if (e?.response?.status === 401) logout();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, setUser, logout]);
 
   return (
     <ErrorBoundary>

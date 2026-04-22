@@ -18,7 +18,8 @@ export const useSocket = () => {
   const removeFriendFromStore = useFriendStore((state) => state.removeFriend);
 
   useEffect(() => {
-    if (!token || !currentUser) return;
+    // Сокет должен подниматься сразу после refresh — достаточно токена, currentUser может ещё догружаться
+    if (!token) return;
 
     // Same-origin: сокет идёт через Vite-proxy (ws: true) → backend:5000.
     // На телефоне страница по HTTPS, поэтому и ws автоматически wss — без mixed-content.
@@ -74,9 +75,21 @@ export const useSocket = () => {
         id: Date.now(),
         type: 'nearby',
         from: { id: data.userId, name: data.name },
+        meters: data.meters,
         read: false,
         createdAt: new Date(),
       });
+      // Push-уведомление + вибрация если разрешено
+      try {
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Кто-то рядом!', {
+            body: `${data.name} в ${data.meters || '~10'} м от тебя`,
+            icon: '/icon-192.png',
+            tag: `nearby-${data.userId}`,
+          });
+        }
+      } catch { /* ignore */ }
     });
 
     socket.on('friend-online', (data) => {
@@ -123,7 +136,7 @@ export const useSocket = () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, currentUser, updateFriendLocation, removeFriendLocation, addNotification, setFriends, removeFriendFromStore]);
+  }, [token, updateFriendLocation, removeFriendLocation, addNotification, setFriends, removeFriendFromStore]);
 
   return {
     socket: socketRef.current,

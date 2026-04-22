@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Edit2, Check, Mail, Settings2, Palette, Shield } from 'lucide-react';
+import { LogOut, Edit2, Check, Mail, Settings2, Palette, Shield, Camera, Trash2 } from 'lucide-react';
 import { getProfile, updateProfile } from '../api/profile.js';
 import { useAuthStore } from '../store/authStore.js';
 import { GhostToggle } from '../components/GhostToggle.jsx';
@@ -8,6 +8,7 @@ import { Avatar } from '../components/Avatar.jsx';
 import { SavedLocations } from '../components/SavedLocations.jsx';
 import { BottomNav } from '../components/BottomNav.jsx';
 import { Toast } from '../components/Toast.jsx';
+import { compressImage } from '../utils/image.js';
 
 const COLORS = [
   '#7c3aed', '#db2777', '#d97706', '#059669', '#2563eb',
@@ -17,18 +18,22 @@ const COLORS = [
 export const Profile = () => {
   const navigate = useNavigate();
   const currentUser = useAuthStore((state) => state.currentUser);
+  const setUser = useAuthStore((state) => state.setUser);
   const logout = useAuthStore((state) => state.logout);
 
   const [profile, setProfile] = useState(null);
   const [editName, setEditName] = useState(false);
   const [newName, setNewName] = useState('');
   const [selectedColor, setSelectedColor] = useState(currentUser?.color || '#7c3aed');
+  const [avatar, setAvatar] = useState(currentUser?.avatar || null);
   const [ghostMode, setGhostMode] = useState(false);
   const [privacyMode, setPrivacyMode] = useState('friends');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [toast, setToast] = useState(null);
   const [hasUnsaved, setHasUnsaved] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -37,6 +42,7 @@ export const Profile = () => {
         setProfile(data);
         setNewName(data.name);
         setSelectedColor(data.color);
+        setAvatar(data.avatar || null);
         setGhostMode(data.ghostMode);
         setPrivacyMode(data.privacyMode);
       } catch (error) {
@@ -56,7 +62,9 @@ export const Profile = () => {
     setSaving(true);
     try {
       await updateProfile({ name: newName, color: selectedColor, ghostMode, privacyMode });
-      setProfile({ ...profile, name: newName, color: selectedColor, ghostMode, privacyMode });
+      const updated = { ...profile, name: newName, color: selectedColor, ghostMode, privacyMode };
+      setProfile(updated);
+      setUser({ ...(currentUser || {}), ...updated, avatar });
       setEditName(false);
       setHasUnsaved(false);
       if (navigator.vibrate) navigator.vibrate(10);
@@ -66,6 +74,53 @@ export const Profile = () => {
       setToast({ message: errorMsg, type: 'error' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarPick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // позволяем выбрать тот же файл повторно
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setToast({ message: 'Файл слишком большой (макс 10MB)', type: 'error' });
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const dataUrl = await compressImage(file, { maxSize: 256, quality: 0.85 });
+      // Сразу сохраняем на бэке + обновляем локально
+      await updateProfile({ avatar: dataUrl });
+      setAvatar(dataUrl);
+      setProfile((p) => (p ? { ...p, avatar: dataUrl } : p));
+      setUser({ ...(currentUser || {}), avatar: dataUrl });
+      if (navigator.vibrate) navigator.vibrate(10);
+      setToast({ message: 'Аватарка обновлена', type: 'success' });
+    } catch (err) {
+      const msg = err?.response?.data?.error || err?.message || 'Не удалось загрузить';
+      setToast({ message: msg, type: 'error' });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!avatar) return;
+    if (!window.confirm('Убрать аватарку?')) return;
+    setUploadingAvatar(true);
+    try {
+      await updateProfile({ avatar: null });
+      setAvatar(null);
+      setProfile((p) => (p ? { ...p, avatar: null } : p));
+      setUser({ ...(currentUser || {}), avatar: null });
+      setToast({ message: 'Аватарка убрана', type: 'success' });
+    } catch (err) {
+      setToast({ message: 'Не удалось убрать', type: 'error' });
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -99,7 +154,42 @@ export const Profile = () => {
             style={{ backgroundColor: selectedColor }}
           />
           <div className="relative">
-            <Avatar name={newName} color={selectedColor} size="lg" />
+            <button
+              type="button"
+              onClick={handleAvatarPick}
+              disabled={uploadingAvatar}
+              className="press relative block rounded-full focus:outline-none focus:ring-2 focus:ring-accent/60"
+              aria-label="Сменить аватарку"
+            >
+              <Avatar name={newName} color={selectedColor} size="lg" avatar={avatar} />
+              <div className="absolute inset-0 rounded-full bg-black/0 hover:bg-black/40 transition-colors flex items-center justify-center">
+                {uploadingAvatar ? (
+                  <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Camera size={18} className="text-white opacity-0 hover:opacity-100 transition-opacity" />
+                )}
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center shadow-lg ring-2 ring-bg">
+                <Camera size={14} />
+              </div>
+            </button>
+            {avatar && !uploadingAvatar && (
+              <button
+                type="button"
+                onClick={handleAvatarRemove}
+                className="press absolute -top-1 -left-1 w-7 h-7 rounded-full bg-red-500/90 text-white flex items-center justify-center shadow-lg ring-2 ring-bg"
+                aria-label="Убрать аватарку"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarFile}
+              className="hidden"
+            />
           </div>
         </div>
 

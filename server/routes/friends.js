@@ -53,6 +53,7 @@ router.get('/', authMiddleware, async (req, res) => {
         name: friend.name,
         email: friend.email,
         color: friend.color,
+        avatar: friend.avatar,
         ghostMode: friend.ghostMode,
         location: location
           ? {

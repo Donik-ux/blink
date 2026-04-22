@@ -11,7 +11,7 @@ router.get('/conversations', authenticateToken, async (req, res) => {
     const conversations = await Conversation.find({
       participants: req.user.id,
     })
-      .populate('participants', 'name email color')
+      .populate('participants', 'name email color avatar')
       .sort({ updatedAt: -1 });
 
     res.json(conversations);
@@ -59,7 +59,7 @@ router.post('/conversations', authenticateToken, async (req, res) => {
       });
     }
 
-    await conversation.populate('participants', 'name email color');
+    await conversation.populate('participants', 'name email color avatar');
 
     res.json(conversation);
   } catch (error) {

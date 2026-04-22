@@ -25,6 +25,7 @@ router.get('/', authMiddleware, async (req, res) => {
       name: user.name,
       email: user.email,
       color: user.color,
+      avatar: user.avatar,
       inviteCode: user.inviteCode,
       ghostMode: user.ghostMode,
       privacyMode: user.privacyMode,
@@ -41,7 +42,7 @@ router.get('/', authMiddleware, async (req, res) => {
 // PUT /api/profile - Обновить профиль
 router.put('/', authMiddleware, async (req, res) => {
   try {
-    const { name, color, ghostMode, privacyMode } = req.body;
+    const { name, color, ghostMode, privacyMode, avatar } = req.body;
 
     const user = await User.findById(req.user.id);
 
@@ -87,6 +88,21 @@ router.put('/', authMiddleware, async (req, res) => {
       user.privacyMode = privacyMode;
     }
 
+    if (avatar !== undefined) {
+      if (avatar === null || avatar === '') {
+        user.avatar = null;
+      } else {
+        // Базовая валидация data URL и размера (~70KB после base64)
+        if (typeof avatar !== 'string' || !avatar.startsWith('data:image/')) {
+          return res.status(400).json({ error: 'Некорректный формат аватара' });
+        }
+        if (avatar.length > 95_000) {
+          return res.status(400).json({ error: 'Аватар слишком большой (макс ~70KB)' });
+        }
+        user.avatar = avatar;
+      }
+    }
+
     await user.save();
 
     res.json({
@@ -96,6 +112,7 @@ router.put('/', authMiddleware, async (req, res) => {
         name: user.name,
         email: user.email,
         color: user.color,
+        avatar: user.avatar,
         ghostMode: user.ghostMode,
         privacyMode: user.privacyMode,
       },

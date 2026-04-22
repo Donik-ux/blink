@@ -19,7 +19,7 @@ const FriendRowImpl = ({ friend, onDelete, onMessage }) => {
   return (
     <div className="press group flex items-center gap-3 p-3 bg-surface/50 hover:bg-surface/70 border border-white/5 rounded-2xl transition-colors">
       <div className="relative shrink-0">
-        <Avatar name={friend.name} color={friend.color} size="md" />
+        <Avatar name={friend.name} color={friend.color} avatar={friend.avatar} size="md" />
         <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-bg ${statusColor}`} />
       </div>
 
@@ -64,6 +64,7 @@ export const FriendRow = memo(FriendRowImpl, (prev, next) => {
     a.id === b.id &&
     a.name === b.name &&
     a.color === b.color &&
+    a.avatar === b.avatar &&
     a.ghostMode === b.ghostMode &&
     a.online === b.online &&
     a.location?.address === b.location?.address &&

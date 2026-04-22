@@ -25,6 +25,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '#7c3aed', // Случайный при создании
     },
+    avatar: {
+      type: String, // data:image/jpeg;base64,... — сжимается на клиенте до ~50KB
+      default: null,
+    },
     inviteCode: {
       type: String,
       unique: true,

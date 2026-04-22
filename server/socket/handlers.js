@@ -179,27 +179,29 @@ export const setupSocketHandlers = (io) => {
             updatedAt: new Date(),
           });
 
-          if (!isGhost && distance && distance.unit === 'м' && distance.value < 1000) {
-            nearbyToNotify.push(friendId);
+          // "Рядом" = в пределах 10 метров
+          if (!isGhost && distance && distance.unit === 'м' && distance.value <= 10) {
+            nearbyToNotify.push({ friendId, meters: distance.value });
           }
         }
 
-        // Антиспам: одно уведомление "рядом" на 5 минут на пару
+        // Антиспам: одно уведомление "рядом" на 10 минут на пару
         if (nearbyToNotify.length > 0) {
-          const fiveMinAgo = new Date(now - 5 * 60_000);
+          const antispamFrom = new Date(now - 10 * 60_000);
           await Promise.all(
-            nearbyToNotify.map(async (friendId) => {
+            nearbyToNotify.map(async ({ friendId, meters }) => {
               const existing = await Notification.findOne({
                 userId: friendId,
                 type: 'nearby',
                 fromUser: userId,
-                createdAt: { $gte: fiveMinAgo },
+                createdAt: { $gte: antispamFrom },
               });
               if (!existing) {
                 await Notification.create({ userId: friendId, type: 'nearby', fromUser: userId });
                 io.to(`user:${friendId}`).emit('friend-nearby', {
                   userId,
                   name: sender.name,
+                  meters: Math.round(meters),
                 });
               }
             })
