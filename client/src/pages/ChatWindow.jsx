@@ -54,6 +54,8 @@ export const ChatWindow = () => {
   const myId = useMemo(() => currentUser?.id || getUserIdFromToken(), [currentUser]);
   const { socket } = useSocket();
 
+  const typingClearRef = useRef(null);
+
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -115,7 +117,15 @@ export const ChatWindow = () => {
     };
 
     const onTyping = (data) => {
-      if (data.conversationId === conversationId) setIsTyping(!!data.isTyping);
+      if (data.conversationId !== conversationId) return;
+      if (data.isTyping) {
+        setIsTyping(true);
+        if (typingClearRef.current) clearTimeout(typingClearRef.current);
+        typingClearRef.current = setTimeout(() => setIsTyping(false), 4000);
+      } else {
+        setIsTyping(false);
+        if (typingClearRef.current) clearTimeout(typingClearRef.current);
+      }
     };
 
     socket.on('receive-message', onReceive);
@@ -125,6 +135,7 @@ export const ChatWindow = () => {
       socket.off('receive-message', onReceive);
       socket.off('user-typing', onTyping);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (typingClearRef.current) clearTimeout(typingClearRef.current);
     };
   }, [conversationId, socket]);
 

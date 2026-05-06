@@ -86,6 +86,8 @@ export const Map = () => {
             lat: f.location.lat,
             lng: f.location.lng,
             address: f.location.address || '',
+            speed: f.location.speed ?? null,
+            heading: f.location.heading ?? null,
             updatedAt: f.location.updatedAt || new Date(),
           });
         }

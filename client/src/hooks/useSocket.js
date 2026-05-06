@@ -16,6 +16,7 @@ export const useSocket = () => {
   const addNotification = useNotificationStore((state) => state.addNotification);
   const setFriends = useFriendStore((state) => state.setFriends);
   const removeFriendFromStore = useFriendStore((state) => state.removeFriend);
+  const updateFriendPresence = useFriendStore((state) => state.updateFriendPresence);
 
   useEffect(() => {
     // Сокет должен подниматься сразу после refresh — достаточно токена, currentUser может ещё догружаться
@@ -60,12 +61,13 @@ export const useSocket = () => {
     });
 
     socket.on('friend-location-update', (data) => {
-      // Убеждаемся, что ID пользователя используется корректно для стора
       updateFriendLocation(data.userId, {
         lat: data.lat,
         lng: data.lng,
         address: data.address,
         distance: data.distance,
+        speed: data.speed ?? null,
+        heading: data.heading ?? null,
         updatedAt: data.updatedAt,
       });
     });
@@ -93,11 +95,11 @@ export const useSocket = () => {
     });
 
     socket.on('friend-online', (data) => {
-      console.log(`${data.name} онлайн`);
+      updateFriendPresence(data.userId, { online: true });
     });
 
     socket.on('friend-offline', (data) => {
-      console.log(`${data.name} оффлайн`);
+      updateFriendPresence(data.userId, { online: false, lastSeen: data.lastSeen || new Date() });
     });
 
     // Друга добавили — перезагружаем список, чтоб он сразу появился у обеих сторон
@@ -136,7 +138,7 @@ export const useSocket = () => {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, updateFriendLocation, removeFriendLocation, addNotification, setFriends, removeFriendFromStore]);
+  }, [token, updateFriendLocation, removeFriendLocation, addNotification, setFriends, removeFriendFromStore, updateFriendPresence]);
 
   return {
     socket: socketRef.current,

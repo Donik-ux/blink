@@ -5,6 +5,7 @@ import Location from '../models/Location.js';
 import Notification from '../models/Notification.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { calculateDistance } from '../utils/haversine.js';
+import { onlineUsers } from '../socket/onlineStore.js';
 
 const router = express.Router();
 
@@ -48,6 +49,7 @@ router.get('/', authMiddleware, async (req, res) => {
         distance = calculateDistance(myLocation.lat, myLocation.lng, location.lat, location.lng);
       }
 
+      const isOnline = onlineUsers.has(friendId.toString());
       return {
         id: friend._id,
         name: friend.name,
@@ -55,11 +57,15 @@ router.get('/', authMiddleware, async (req, res) => {
         color: friend.color,
         avatar: friend.avatar,
         ghostMode: friend.ghostMode,
+        online: isOnline,
+        lastSeen: friend.lastSeen || null,
         location: location
           ? {
               lat: location.lat,
               lng: location.lng,
               address: location.address,
+              speed: location.speed ?? null,
+              heading: location.heading ?? null,
               updatedAt: location.updatedAt,
             }
           : null,

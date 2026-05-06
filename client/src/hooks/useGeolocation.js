@@ -18,14 +18,15 @@ export const useGeolocation = (socket) => {
     if (!navigator.geolocation) return;
 
     const onPosition = (position) => {
-      const { latitude, longitude, accuracy } = position.coords;
+      const { latitude, longitude, accuracy, speed, heading } = position.coords;
 
-      setMyLocation({ lat: latitude, lng: longitude, accuracy });
+      setMyLocation({ lat: latitude, lng: longitude, accuracy, speed, heading });
 
       const last = lastSentRef.current;
       const now = Date.now();
       const dist = calculateDistance(last?.lat, last?.lng, latitude, longitude);
-      const movedEnough = !last || (dist && (dist.unit === 'км' || dist.value >= MIN_DELTA_M));
+      // Fix: !dist handles null (no previous point), unit check handles km, value check handles meters
+      const movedEnough = !last || !dist || dist.unit === 'км' || dist.value >= MIN_DELTA_M;
       const timeEnough = !last || now - last.t >= MIN_EMIT_INTERVAL_MS;
 
       if (!movedEnough && !timeEnough) return;
@@ -36,6 +37,8 @@ export const useGeolocation = (socket) => {
           lat: latitude,
           lng: longitude,
           accuracy,
+          speed: typeof speed === 'number' ? speed : null,
+          heading: typeof heading === 'number' ? heading : null,
           ghostMode,
         });
       }

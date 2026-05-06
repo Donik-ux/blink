@@ -22,6 +22,7 @@ import profileRoutes from './routes/profile.js';
 import notificationsRoutes from './routes/notifications.js';
 import savedLocationsRoutes from './routes/savedLocations.js';
 import messagesRoutes from './routes/messages.js';
+import stepsRoutes from './routes/steps.js';
 
 if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
   console.error('✗ JWT_SECRET обязателен в production');
@@ -67,6 +68,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/saved-locations', savedLocationsRoutes);
 app.use('/api/chat', messagesRoutes);
+app.use('/api/steps', stepsRoutes);
 
 // Расширенный health
 app.get('/health', (req, res) => {

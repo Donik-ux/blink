@@ -14,6 +14,7 @@ const Activity = lazy(() => import('./pages/Activity.jsx').then((m) => ({ defaul
 const Profile = lazy(() => import('./pages/Profile.jsx').then((m) => ({ default: m.Profile })));
 const ChatList = lazy(() => import('./pages/ChatList.jsx').then((m) => ({ default: m.ChatList })));
 const ChatWindow = lazy(() => import('./pages/ChatWindow.jsx').then((m) => ({ default: m.ChatWindow })));
+const Steps = lazy(() => import('./pages/Steps.jsx').then((m) => ({ default: m.Steps })));
 
 const PrivateRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -119,6 +120,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/steps"
+              element={
+                <PrivateRoute>
+                  <Steps />
                 </PrivateRoute>
               }
             />

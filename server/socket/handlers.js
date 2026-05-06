@@ -5,14 +5,14 @@ import Friendship from '../models/Friendship.js';
 import Notification from '../models/Notification.js';
 import { calculateDistance } from '../utils/haversine.js';
 import { geocodeAddress } from '../utils/geocode.js';
-
-// Словарь для отслеживания онлайн пользователей
-const onlineUsers = new Map();
+import { onlineUsers } from './onlineStore.js';
 
 // Последняя геокодированная точка пользователя — чтобы не дёргать Nominatim на каждый 5-сек апдейт
 const lastGeocode = new Map(); // userId -> { lat, lng, address }
 // Последний отправленный апдейт — throttle по времени
 const lastBroadcast = new Map(); // userId -> timestamp
+// Предыдущая локация для серверного расчёта скорости
+const lastKnownLocation = new Map(); // userId -> { lat, lng, timestamp }
 const LOCATION_THROTTLE_MS = 3000;
 const GEOCODE_MOVE_THRESHOLD_M = 80; // перегеокодировать, если сместились >80м
 
@@ -53,7 +53,7 @@ export const setupSocketHandlers = (io) => {
         socket.join(`user:${userId}`);
         onlineUsers.set(userId, socket.id);
 
-        const user = await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+        const user = await User.findById(userId);
         if (!user) {
           socket.emit('error', { message: 'Пользователь не найден' });
           return;
@@ -95,7 +95,7 @@ export const setupSocketHandlers = (io) => {
           return;
         }
 
-        const { lat, lng, accuracy } = data || {};
+        const { lat, lng, accuracy, speed: clientSpeed, heading } = data || {};
 
         // Валидация координат
         if (
@@ -115,6 +115,19 @@ export const setupSocketHandlers = (io) => {
         if (now - lastT < LOCATION_THROTTLE_MS) return;
         lastBroadcast.set(userId, now);
 
+        // Расчёт скорости: берём из браузера, либо считаем по двум точкам
+        let speed = (typeof clientSpeed === 'number' && clientSpeed >= 0) ? clientSpeed : null;
+        const prevLoc = lastKnownLocation.get(userId);
+        if (speed === null && prevLoc) {
+          const timeDelta = (now - prevLoc.timestamp) / 1000;
+          if (timeDelta > 0 && timeDelta < 60) {
+            const d = calculateDistance(prevLoc.lat, prevLoc.lng, lat, lng);
+            const distMeters = d.unit === 'км' ? parseFloat(d.value) * 1000 : d.value;
+            speed = distMeters / timeDelta;
+          }
+        }
+        lastKnownLocation.set(userId, { lat, lng, timestamp: now });
+
         // Геокодирование — только если сдвинулись ощутимо, иначе переиспользуем
         const prev = lastGeocode.get(userId.toString());
         let address;
@@ -133,7 +146,7 @@ export const setupSocketHandlers = (io) => {
         // Сохраняем локацию (1 запрос)
         await Location.findOneAndUpdate(
           { userId },
-          { lat, lng, accuracy, address, updatedAt: new Date() },
+          { lat, lng, accuracy, address, speed, heading: heading ?? null, updatedAt: new Date() },
           { upsert: true, new: true }
         );
 
@@ -176,6 +189,8 @@ export const setupSocketHandlers = (io) => {
             address,
             ghostMode: isGhost,
             distance,
+            speed,
+            heading: heading ?? null,
             updatedAt: new Date(),
           });
 
@@ -221,6 +236,10 @@ export const setupSocketHandlers = (io) => {
         onlineUsers.delete(userId);
         lastBroadcast.delete(userId);
         lastGeocode.delete(userId);
+        lastKnownLocation.delete(userId);
+
+        const lastSeenAt = new Date();
+        await User.findByIdAndUpdate(userId, { lastSeen: lastSeenAt });
 
         const friendIds = await getFriendIds(userId);
         const onlineFriends = friendIds.filter((id) => onlineUsers.has(id));
@@ -229,7 +248,7 @@ export const setupSocketHandlers = (io) => {
         const user = await User.findById(userId);
         const name = user?.name || '';
         for (const friendId of onlineFriends) {
-          io.to(`user:${friendId}`).emit('friend-offline', { userId, name });
+          io.to(`user:${friendId}`).emit('friend-offline', { userId, name, lastSeen: lastSeenAt });
         }
         console.log(`Пользователь ${userId} отключился`);
       } catch (error) {

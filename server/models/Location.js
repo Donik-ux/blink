@@ -20,6 +20,14 @@ const locationSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    speed: {
+      type: Number,
+      default: null,
+    },
+    heading: {
+      type: Number,
+      default: null,
+    },
     address: {
       type: String,
       default: 'Неизвестное место',
